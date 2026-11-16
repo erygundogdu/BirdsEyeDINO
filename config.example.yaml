@@ -1,0 +1,50 @@
+detector:
+  workspace: ../yolov7-improved-ws
+  weights: ../yolov7-improved-ws/model.pt
+  image_dir: ../yolov7-improved-ws/data/images
+  recursive: false
+  max_images: null
+  image_size: 1280
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  device: cuda:0
+candidates:
+  target_class: 4
+  crop_mode: bbox
+  reject_bbox_overlap: true
+  crop_size: 112
+  reject_other_objects: true
+  padding_value: 114
+dino:
+  backbone: normal
+  input_size: [224, 224]
+  batch_size: 16
+  embedding_type: cls
+  device: cuda:0
+  hub_directory: ./.cache/torch/hub
+  normal:
+    model: dinov2_vitb14
+    repository: null
+    weights: null
+  satellite:
+    model: facebook/dinov3-vitl16-pretrain-sat493m
+    local_directory: null
+    cache_directory: ./.cache/huggingface/hub
+    local_files_only: false
+clustering:
+  k: 4
+  random_state: 42
+  n_init: 10
+visualization:
+  save_annotated_images: true
+  save_cluster_galleries: true
+  save_pca: true
+  save_tsne: true
+  dpi: 300
+  tsne_perplexity: 30
+  gallery_columns: 5
+  gallery_page_size: 50
+output:
+  directory: ./dino_analysis
+  save_crops: true
+  save_embeddings: true
