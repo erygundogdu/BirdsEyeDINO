@@ -11,6 +11,7 @@ import torch
 from candidate_extractor import MANIFEST_FIELDS, extract_candidates
 from clustering import cluster
 from detector import Detector
+from dataset_analysis import MAR20Dataset, evaluate_clusters
 from feature_extractor import FeatureExtractor
 from runtime import backbone_settings, load_config, read_image, write_csv, write_json
 from visualization import annotate, galleries, projections, rejected_debug
@@ -33,12 +34,22 @@ def run(config_path=Path(__file__).with_name('config.yaml')):
         summary['backbone'] = {k: v for k, v in backbone.items() if k != 'settings'}
         FeatureExtractor.prepare(cfg['dino'])
         start = time.perf_counter()
-        detector = Detector(cfg['detector'])
-        paths = detector.image_paths()
+        dataset = MAR20Dataset(cfg['dataset_path']) if cfg['analyze_dataset'] else None
+        image_root = dataset.image_root if dataset else cfg['detector']['image_dir']
+        if dataset:
+            detector = None
+            paths = dataset.paths
+            cfg['candidates'].update(target_class=None, crop_mode='bbox', reject_bbox_overlap=False)
+            cfg['clustering']['k'] = len(dataset.class_names)
+            summary.update(requested_clusters=cfg['clustering']['k'], dataset_class_names=dataset.class_names,
+                           dataset_scope='All annotated images, including train and test splits; descriptive clustering evaluation.')
+        else:
+            detector = Detector(cfg['detector'])
+            paths = detector.image_paths()
+            summary['detector_attention_modules'] = detector.attention_modules
+            summary['detector_compatibility_repairs'] = detector.compatibility_repairs
+            summary['detector_class_names'] = detector.model.names
         summary['total_images_discovered'] = len(paths)
-        summary['detector_attention_modules'] = detector.attention_modules
-        summary['detector_compatibility_repairs'] = detector.compatibility_repairs
-        summary['detector_class_names'] = detector.model.names
         processed = []
         for index, path in enumerate(paths):
             try:
@@ -46,16 +57,16 @@ def run(config_path=Path(__file__).with_name('config.yaml')):
             except ValueError as error:
                 errors.append(dict(image_path=str(path), error=str(error)))
                 continue
-            detections = detector.predict(image)
+            detections = dataset.detections(path) if dataset else detector.predict(image)
             processed.append(path)
             summary['total_detections'] += len(detections)
-            relative = path.relative_to(cfg['detector']['image_dir'])
+            relative = path.relative_to(image_root)
             all_detections.append(dict(image_path=str(path), image_shape=list(image.shape),
                                        detections=detections.tolist()))
             records.extend(extract_candidates(image, path, relative, index, detections,
                                                cfg['candidates'], output, cfg['output']['save_crops']))
             if (index + 1) % 25 == 0 or index == len(paths) - 1:
-                print(f'Detection: {index + 1}/{len(paths)} images, {sum(r["valid"] for r in records)} accepted', flush=True)
+                print(f'Candidates: {index + 1}/{len(paths)} images, {sum(r["valid"] for r in records)} accepted', flush=True)
         timings['detection_and_candidates'] = time.perf_counter() - start
         summary['total_images_processed'] = len(processed)
         accepted = [r for r in records if r['valid']]
@@ -104,8 +115,12 @@ def run(config_path=Path(__file__).with_name('config.yaml')):
             summary.update(status='complete', number_of_clusters=len(set(labels)),
                            instances_per_cluster=result['counts'])
             summary['warnings'].extend(result['warnings'])
+            if dataset:
+                summary['evaluation'] = evaluate_clusters(accepted, ids, labels, dataset.class_names,
+                                                          output / 'clustering')
+                write_json(output / 'clustering' / 'metrics.json', summary['evaluation'])
             if cfg['visualization']['save_annotated_images']:
-                annotate(processed, accepted, dict(zip(ids, map(int, labels))), cfg['detector']['image_dir'], visual)
+                annotate(processed, accepted, dict(zip(ids, map(int, labels))), image_root, visual)
             if cfg['visualization']['save_cluster_galleries']:
                 galleries(accepted, labels, cfg['clustering']['k'], cfg['visualization'],
                           visual, cfg['candidates']['padding_value'])

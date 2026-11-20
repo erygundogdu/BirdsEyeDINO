@@ -58,7 +58,7 @@ def extract_candidates(image, path, relative, image_index, detections, config, o
         raise ValueError('crop_mode must be contextual or bbox.')
     records = []
     for index, detection in enumerate(detections):
-        if int(detection[5]) != config['target_class']:
+        if config['target_class'] is not None and int(detection[5]) != config['target_class']:
             continue
         instance = f'i{image_index:06d}_d{index:04d}'
         record = dict(instance_id=instance, image_filename=path.name, image_path=str(path),

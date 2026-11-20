@@ -14,6 +14,22 @@ from visualization import annotate, galleries, projections, rejected_debug
 
 
 class CandidateTests(unittest.TestCase):
+    def test_null_target_class_includes_all_detected_classes(self):
+        image = np.zeros((100, 100, 3), np.uint8)
+        detections = np.array([[10, 10, 20, 20, .9, 2],
+                               [60, 60, 70, 70, .8, 4]], np.float32)
+        cfg = dict(target_class=None, crop_mode='bbox', padding_value=114)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            records = extract_candidates(image, root / 'image.png', Path('image.png'),
+                                         0, detections, cfg, root, False)
+            self.assertEqual([r['class_id'] for r in records], [2, 4])
+            self.assertTrue(all(r['valid'] for r in records))
+            cfg['target_class'] = 2
+            records = extract_candidates(image, root / 'image.png', Path('image.png'),
+                                         0, detections, cfg, root, False)
+            self.assertEqual([r['class_id'] for r in records], [2])
+
     def test_square_contains_fractional_box_and_padding(self):
         image = np.full((80, 100, 3), 200, dtype=np.uint8)
         for bbox in ([0.1, 0.2, 20.8, 21.7], [1.1, 5.2, 99.8, 35.4], [20, 20, 25, 25]):

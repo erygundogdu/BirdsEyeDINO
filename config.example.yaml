@@ -1,3 +1,5 @@
+analyze_dataset: false  # true uses labeled MAR20 boxes, all classes, and K = class count
+dataset_path: ../yolov7-improved-ws/MAR20
 detector:
   workspace: ../yolov7-improved-ws
   weights: ../yolov7-improved-ws/model.pt
@@ -9,7 +11,7 @@ detector:
   iou_threshold: 0.45
   device: cuda:0
 candidates:
-  target_class: 4
+  target_class: 4  # null includes all detector classes; an integer selects one class ID
   crop_mode: bbox
   reject_bbox_overlap: true
   crop_size: 112

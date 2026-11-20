@@ -20,7 +20,7 @@ The detector workspace's dependencies also need to be available. Create a local 
 Copy-Item config.example.yaml config.yaml
 ```
 
-Set `detector.workspace`, `detector.weights`, and `detector.image_dir` to your own paths. Use `recursive: false` to process only the chosen image folder, or `true` to include its subfolders. Set `target_class` to the class ID used by your checkpoint.
+Set `detector.workspace`, `detector.weights`, and `detector.image_dir` to your own paths. Use `recursive: false` to process only the chosen image folder, or `true` to include its subfolders. Set `candidates.target_class` to a class ID used by your checkpoint, or `null` to include all detected classes. All accepted classes are clustered together; `clustering.k` independently controls the number of visual clusters.
 
 Then run:
 
@@ -31,6 +31,27 @@ python main.py
 All settings come from `config.yaml`; there are no command-line arguments. Relative paths are resolved against the config file. Set both devices to `cpu` if CUDA is unavailable. For a quick trial, set `detector.max_images` to a small number.
 
 Each run needs an empty `output.directory`. Choose a new directory when comparing settings so the results from earlier runs remain available.
+
+## Analyzing the labeled MAR20 dataset
+
+Set these two top-level fields in `config.yaml`, then run `python main.py`:
+
+```yaml
+analyze_dataset: true
+dataset_path: C:/Users/statb/Desktop/yolov7-improved-ws/MAR20
+```
+
+This mode reads `JPEGImages` and Pascal VOC-style XML in `Annotations/Horizontal Bounding Boxes`. It pairs files by stem because MAR20's XML filename field can contain an XML filename. VOC's one-based inclusive boxes are converted to zero-based crop coordinates. The oriented annotations are unused because the existing pipeline takes rectangular crops. Dataset files are read only.
+
+All annotated objects from all images are included, including both official train and test splits. YOLO inference, detector image limits, target-class filtering, and overlap rejection are bypassed. Tight ground-truth crops go through the existing DINO extractor, K-Means, galleries, and projections. K is automatically set to the number of annotated classes (20 for MAR20); the effective settings are saved in `summary.json`. Labels never enter the embeddings or K-Means fitting. Set `analyze_dataset: false` to restore detector mode and its configured K.
+
+Results include `clustering/metrics.json` (also under `evaluation` in `summary.json`), `class_cluster_counts.csv`, and `evaluated_assignments.csv`. Metrics cover accepted crops from successfully decoded images; rejected crops and image errors remain in the usual exports.
+
+- **Adjusted Rand index (ARI):** agreement between the labeled groups and clusters, adjusted for chance; 1 is perfect, around 0 is chance, negative values are possible.
+- **Normalized mutual information (NMI):** shared information between classes and clusters, from 0 to 1; 1 is perfect.
+- **Matched accuracy:** fraction correct after an optimal one-to-one matching of cluster IDs to class names, from 0 to 1. Cluster numbers have no inherent class meaning.
+
+These are descriptive clustering metrics on the full dataset, not held-out classifier accuracy. Use a fresh `output.directory` for each run, as usual.
 
 ## Choosing the image region
 

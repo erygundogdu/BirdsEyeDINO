@@ -52,6 +52,15 @@ def load_config(path):
     for section in ('detector', 'candidates', 'dino', 'clustering', 'visualization', 'output'):
         if not isinstance(cfg.get(section), dict):
             raise ValueError(f'Missing configuration section: {section}')
+    cfg.setdefault('analyze_dataset', False)
+    if not isinstance(cfg['analyze_dataset'], bool):
+        raise ValueError('analyze_dataset must be true or false.')
+    if cfg['analyze_dataset']:
+        if not cfg.get('dataset_path'):
+            raise ValueError('dataset_path is required when analyze_dataset is true.')
+        cfg['dataset_path'] = (path.parent / Path(cfg['dataset_path']).expanduser()).resolve()
+        if not cfg['dataset_path'].is_dir():
+            raise ValueError('dataset_path directory does not exist.')
     for section, keys in {
         'detector': ('workspace', 'weights', 'image_dir'),
         'dino': ('repository', 'weights', 'hub_directory'),
@@ -67,11 +76,12 @@ def load_config(path):
             value = cfg['dino'].get(profile, {}).get(key)
             if value is not None:
                 cfg['dino'][profile][key] = (path.parent / Path(value).expanduser()).resolve()
-    for key in ('workspace', 'image_dir'):
-        if not cfg['detector'][key].is_dir():
-            raise ValueError(f'Detector {key} directory does not exist.')
-    if not cfg['detector']['weights'].is_file():
-        raise ValueError('Detector checkpoint does not exist.')
+    if not cfg['analyze_dataset']:
+        for key in ('workspace', 'image_dir'):
+            if not cfg['detector'][key].is_dir():
+                raise ValueError(f'Detector {key} directory does not exist.')
+        if not cfg['detector']['weights'].is_file():
+            raise ValueError('Detector checkpoint does not exist.')
     backbone = backbone_settings(cfg['dino'])
     settings = backbone['settings']
     for key in ('repository', 'weights', 'local_directory'):
@@ -105,6 +115,8 @@ def load_config(path):
     if not 0 <= cfg['candidates']['padding_value'] <= 255:
         raise ValueError('padding_value must be in [0, 255].')
     for section in ('detector', 'dino'):
+        if section == 'detector' and cfg['analyze_dataset']:
+            continue
         device_for(cfg[section]['device'])
     output = cfg['output']['directory']
     workspace = cfg['detector']['workspace']
@@ -112,6 +124,8 @@ def load_config(path):
         raise ValueError('Output must be outside the detector workspace.')
     if output == path.parent or output in path.parent.parents:
         raise ValueError('Output must be a dedicated result directory.')
+    if cfg['analyze_dataset'] and (output == cfg['dataset_path'] or cfg['dataset_path'] in output.parents):
+        raise ValueError('Output must be outside the dataset directory.')
     return cfg
 
 

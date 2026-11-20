@@ -12,6 +12,7 @@
 !/candidate_extractor.py
 !/feature_extractor.py
 !/clustering.py
+!/dataset_analysis.py
 !/visualization.py
 !/tests/**/*.py
 !/docs/make_projection_examples.py
